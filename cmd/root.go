@@ -35,9 +35,14 @@ var rootCmd = &cobra.Command{
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		data := make(chan string)
 		go join.Join(args, data)
 		for line := range data {
+			_ = line
+			if verbose {
+				fmt.Print(line)
+			}
 			fmt.Println(line)
 		}
 	},
@@ -53,6 +58,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.logj.yaml)")
+	rootCmd.Flags().BoolP("verbose", "v", false, "Show the file names")
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -5,11 +5,14 @@ import (
 	"container/heap"
 	"log"
 	"os"
+	"regexp"
 	"sync"
 	"time"
 )
 
 var wg sync.WaitGroup
+var timeLayout = "02-01-2006 15:04:05.000"
+var dateReg *regexp.Regexp = regexp.MustCompile(`^(\d{2}-\d{2}-\d{4}\s\d{2}:\d{2}:\d{2}\.\d{3})`)
 
 func process(logs map[string]chan interface{}, lines chan *Line, output chan string) {
 	pq := NewHeap()
@@ -25,7 +28,7 @@ func process(logs map[string]chan interface{}, lines chan *Line, output chan str
 		if cnt >= N && len(*pq) > 0 {
 			cur = heap.Pop(pq).(*Line)
 			logs[cur.file] <- nil
-			output <- cur.line
+			output <- cur.file + cur.line
 		}
 	}
 	// take the remaining line from heap
@@ -33,6 +36,7 @@ func process(logs map[string]chan interface{}, lines chan *Line, output chan str
 		cur = heap.Pop(pq).(*Line)
 		output <- cur.line
 	}
+	close(output)
 }
 
 func Join(files []string, output chan string) {
@@ -49,7 +53,6 @@ func Join(files []string, output chan string) {
 	go process(logs, lines, output)
 	wg.Wait()
 	close(lines)
-	close(output)
 }
 
 func read(file string, lines chan *Line, ready chan interface{}, done sync.WaitGroup) {
@@ -60,9 +63,17 @@ func read(file string, lines chan *Line, ready chan interface{}, done sync.WaitG
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	var text string
+	var t time.Time
+	var matches []string
 	for scanner.Scan() {
-		lines <- &Line{line: scanner.Text(), file: file, ts: time.Now()}
-		// wait until the channel is ready
+		text = scanner.Text()
+		matches = dateReg.FindStringSubmatch(text)
+		if len(matches) == 0 {
+			continue
+		}
+		t, _ = time.Parse(timeLayout, matches[0])
+		lines <- &Line{line: scanner.Text(), file: file, ts: t}
 		<-ready
 	}
 	lines <- nil
