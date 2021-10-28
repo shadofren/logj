@@ -28,7 +28,7 @@ func process(logs map[string]chan interface{}, lines chan *Line, output chan str
 		if cnt >= N && len(*pq) > 0 {
 			cur = heap.Pop(pq).(*Line)
 			logs[cur.file] <- nil
-			output <- cur.file + cur.line
+			output <- cur.line
 		}
 	}
 	// take the remaining line from heap
@@ -39,7 +39,7 @@ func process(logs map[string]chan interface{}, lines chan *Line, output chan str
 	close(output)
 }
 
-func Join(files []string, output chan string) {
+func Join(files []string, output chan string, verbose bool) {
 	N := len(files)
 	wg.Add(N)
 	lines := make(chan *Line, 100)
@@ -47,7 +47,7 @@ func Join(files []string, output chan string) {
 
 	for _, file := range files {
 		logs[file] = make(chan interface{})
-		go read(file, lines, logs[file], wg)
+		go read(file, lines, logs[file], wg, verbose)
 	}
 
 	go process(logs, lines, output)
@@ -55,7 +55,7 @@ func Join(files []string, output chan string) {
 	close(lines)
 }
 
-func read(file string, lines chan *Line, ready chan interface{}, done sync.WaitGroup) {
+func read(file string, lines chan *Line, ready chan interface{}, done sync.WaitGroup, verbose bool) {
 	f, err := os.Open(file)
 	if err != nil {
 		log.Fatal(err)
@@ -73,7 +73,10 @@ func read(file string, lines chan *Line, ready chan interface{}, done sync.WaitG
 			continue
 		}
 		t, _ = time.Parse(timeLayout, matches[0])
-		lines <- &Line{line: scanner.Text(), file: file, ts: t}
+		if verbose {
+			text = file + ":::" + text
+		}
+		lines <- &Line{line: text, file: file, ts: t}
 		<-ready
 	}
 	lines <- nil

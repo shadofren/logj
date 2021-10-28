@@ -37,12 +37,9 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		data := make(chan string)
-		go join.Join(args, data)
+		go join.Join(args, data, verbose)
 		for line := range data {
 			_ = line
-			if verbose {
-				fmt.Print(line)
-			}
 			fmt.Println(line)
 		}
 	},
